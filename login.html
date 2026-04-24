@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Login | Psicólogo IA</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo-area">
+            <span style="font-size: 50px;"></span>
+            <h2>Verificação de Expressão IA </h2>
+            <p>Acesse seu painel terapêutico</p>
+        </div>
+        <form action="/" method="POST">
+            <input type="text" id="user" name="nome" placeholder="Usuário" required>
+            <input type="password" id="pass" name="senha" placeholder="Senha" required>
+        <button type="submit">ENTRAR</button>
+</form>
+    </div>
+
+    <script>
+        function direcionar() {
+            // Aqui você poderia validar o usuário. Por enquanto, vamos direto:
+            window.location.href = "/dashboard";
+        }
+    </script>
+</body>
+</html>
