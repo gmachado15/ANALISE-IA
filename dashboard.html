@@ -1,54 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Análise Facial</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Análise Facial - Agelees</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="login-card" style="width: 500px;">
-        <h2>Verificação de Expressão</h2>
-        <video id="video" autoplay></video>
-        <h1 id="resultado">---</h1>
-        <button onclick="capturar()">Analisar Agora</button>
-    </div>
+  <div class="bg-shape bg-shape-1"></div>
+  <div class="bg-shape bg-shape-2"></div>
 
-    <script>
-        const video = document.getElementById('video');
-        const resultText = document.getElementById('resultado');
+  <div class="page">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon">❤</div>
+        <span class="brand-name">Agelees</span>
+      </div>
+      <a href="{{ url_for('index') }}" class="topbar-link">← Início</a>
+    </header>
 
-        // Liga a Webcam
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => video.srcObject = stream);
+    <main class="main">
+      <div class="content-card">
+        <div class="section-label">Bem-estar emocional</div>
+        <h1 class="titulo">Verificação de Expressão</h1>
+        <p class="subtitulo">Olhe para a câmera e clique em "Analisar" para<br>identificarmos como você está se sentindo.</p>
 
-        async function capturar() {
-            resultText.innerText = "Pensando...";
-            
-            // Desenha o frame atual em um canvas invisível
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            
-            const base64Image = canvas.toDataURL('image/jpeg');
+        <div class="video-wrap">
+          <video id="video" autoplay playsinline></video>
+          <div class="video-overlay" id="scanning-overlay">
+            <div class="scan-line"></div>
+          </div>
+        </div>
 
-            // Envia para o Flask
-            const response = await fetch('/analisar_expressao', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64Image })
-            });
+        <button class="btn-analisar" onclick="capturar()" id="btn-capturar">
+          <span class="btn-icon">◉</span>
+          Analisar agora
+        </button>
+      </div>
 
-            const data = await response.json();
-            const mensagens = {
-            'Feliz': "Que bom te ver feliz! Continue assim!",
-            'Triste': "Sinto que as coisas estão difíceis. Quer conversar?",
-            'Raiva': "Respire fundo... O que está te incomodando?",
-            'Normal': "Você parece focado hoje. No que está pensando?"
+      <div class="resultado-card" id="resultado-card">
+        <div class="resultado-emoji" id="resultado-emoji"></div>
+        <p class="resultado-texto" id="resultado">Pronto para começar</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const resultText = document.getElementById('resultado');
+    const resultEmoji = document.getElementById('resultado-emoji');
+    const resultCard = document.getElementById('resultado-card');
+    const overlay = document.getElementById('scanning-overlay');
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(() => {
+        resultText.innerText = 'Câmera não encontrada.';
+      });
+
+    const emocaoMap = {
+      'Feliz':   { msg: 'Que bom te ver feliz! Continue assim!',           emoji: '😊' },
+      'Triste':  { msg: 'Sinto que as coisas estão difíceis. Quer conversar?', emoji: '🥺' },
+      'Raiva':   { msg: 'Respire fundo... O que está te incomodando?',     emoji: '😤' },
+      'Normal':  { msg: 'Você parece focado hoje. No que está pensando?',  emoji: '🙂' },
     };
 
-resultText.innerText = mensagens[data.emocao] || "Estou te observando...";
-            resultText.innerText = data.emocao || "Erro";
-        }
-    </script>
+    async function capturar() {
+      overlay.classList.add('active');
+      resultText.innerText = 'Analisando...';
+      resultEmoji.innerText = '🔍';
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const base64Image = canvas.toDataURL('image/jpeg');
+
+      try {
+        const response = await fetch('/analisar_expressao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64Image })
+        });
+        const data = await response.json();
+        const info = emocaoMap[data.emocao] || { msg: 'Estou te observando...', emoji: '👀' };
+
+        overlay.classList.remove('active');
+        resultEmoji.innerText = info.emoji;
+        resultText.innerText = info.msg;
+        resultCard.classList.add('has-result');
+      } catch {
+        overlay.classList.remove('active');
+        resultText.innerText = 'Erro ao conectar com o servidor.';
+      }
+    }
+  </script>
 </body>
 </html>
