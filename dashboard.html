@@ -49,53 +49,99 @@
 
   <script>
     const video = document.getElementById('video');
-    const resultText = document.getElementById('resultado');
-    const resultEmoji = document.getElementById('resultado-emoji');
-    const resultCard = document.getElementById('resultado-card');
-    const overlay = document.getElementById('scanning-overlay');
+const resultText = document.getElementById('resultado');
+const resultEmoji = document.getElementById('resultado-emoji');
+const resultCard = document.getElementById('resultado-card');
+const overlay = document.getElementById('scanning-overlay');
 
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => video.srcObject = stream)
-      .catch(() => {
-        resultText.innerText = 'Câmera não encontrada.';
-      });
+// Configurações obrigatórias para WebViews de APKs mobiles funcionarem sem travar
+const constraints = {
+    video: {
+        facingMode: "user", // Garante o uso da câmera de selfie (frontal)
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+    },
+    audio: false // Evita pedir permissão de microfone desnecessariamente
+};
 
-    const emocaoMap = {
-      'Feliz':   { msg: 'Que bom te ver feliz! Continue assim!',           emoji: '😊' },
-      'Triste':  { msg: 'Sinto que as coisas estão difíceis. Quer conversar?', emoji: '🥺' },
-      'Raiva':   { msg: 'Respire fundo... O que está te incomodando?',     emoji: '😤' },
-      'Normal':  { msg: 'Você parece focado hoje. No que está pensando?',  emoji: '🙂' },
-    };
+// Inicializa a câmera assim que entra na página
+navigator.mediaDevices.getUserMedia(constraints)
+  .then(stream => {
+      video.srcObject = stream;
+      // Injeção de atributos essenciais de hardware para WebView do Android
+      video.setAttribute('playsinline', true);
+      video.setAttribute('autoplay', true);
+      
+      // Tenta dar o play automático da imagem da câmera
+      video.play().catch(e => console.log("Aguardando interação inicial para renderizar o vídeo", e));
+  })
+  .catch((err) => {
+      console.error("Erro na câmera:", err);
+      resultText.innerText = 'Câmera não encontrada ou permissão negada.';
+      resultCard.classList.add('has-result');
+  });
 
-    async function capturar() {
-      overlay.classList.add('active');
-      resultText.innerText = 'Analisando...';
-      resultEmoji.innerText = '🔍';
+// Mapeamento idêntico às traduções do seu arquivo Python (app.py)
+const emocaoMap = {
+  'Feliz':    { msg: 'Que bom te ver feliz! Continue assim!',          emoji: '😊' },
+  'Triste':   { msg: 'Sinto que as coisas estão difíceis. Quer conversar?', emoji: '🥺' },
+  'Bravo':    { msg: 'Respire fundo... O que está te incomodando?',     emoji: '😤' },
+  'Neutro':   { msg: 'Você parece focado hoje. No que está pensando?',  emoji: '🙂' },
+  'Surpreso': { msg: 'Nossa! Que surpresa boa!',                        emoji: '😮' },
+  'Medo':     { msg: 'Calma, está tudo bem... Você está seguro.',       emoji: '😨' },
+  'Nojo':     { msg: 'Algo parece não ter te agradado.',                emoji: '😒' }
+};
 
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      const base64Image = canvas.toDataURL('image/jpeg');
+// Função que tira a foto do feed de vídeo, converte em Base64 e manda ao Flask
+async function capturar() {
+  // Evita o envio de frames nulos ou pretos caso a câmera ainda não tenha carregado
+  if (video.videoWidth === 0 || video.videoHeight === 0) {
+      alert('Por favor, aguarde o carregamento da câmera.');
+      return;
+  }
 
-      try {
-        const response = await fetch('/analisar_expressao', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64Image })
-        });
-        const data = await response.json();
-        const info = emocaoMap[data.emocao] || { msg: 'Estou te observando...', emoji: '👀' };
+  // Ativa efeito visual de carregamento
+  overlay.classList.add('active');
+  resultText.innerText = 'Analisando...';
+  resultEmoji.innerText = '🔍';
 
-        overlay.classList.remove('active');
-        resultEmoji.innerText = info.emoji;
-        resultText.innerText = info.msg;
-        resultCard.classList.add('has-result');
-      } catch {
-        overlay.classList.remove('active');
-        resultText.innerText = 'Erro ao conectar com o servidor.';
-      }
-    }
+  // Cria o canvas invisível para congelar o frame da câmera
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.min(video.videoWidth, 640);
+  canvas.height = Math.min(video.videoHeight, 480);
+  
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  // Converte para a String Base64 que seu Flask lê através de request.json.get('image')
+  const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+
+  try {
+    // Envia a foto via POST para o backend
+    const response = await fetch('/analisar_expressao', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64Image })
+    });
+    
+    const data = await response.json();
+    
+    // Puxa a tradução certa com base no retorno do DeepFace
+    const info = emocaoMap[data.emocao] || { msg: 'Não consegui identificar seu rosto claramente.', emoji: '👀' };
+
+    // Desativa o overlay e joga o resultado na tela do idoso
+    overlay.classList.remove('active');
+    resultEmoji.innerText = info.emoji;
+    resultText.innerText = info.msg;
+    resultCard.classList.add('has-result');
+    
+  } catch (err) {
+    console.error("Erro na requisição:", err);
+    overlay.classList.remove('active');
+    resultText.innerText = 'Erro ao conectar com o servidor.';
+    resultCard.classList.add('has-result');
+  }
+}
   </script>
 </body>
 </html>
